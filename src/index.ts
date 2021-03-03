@@ -46,8 +46,15 @@ const init = (modules: {typescript: typeof import('typescript/lib/tsserverlibrar
         if (!enclosingChainStepNode) return existing
         const typeChecker = program.getTypeChecker()
         const enclosingChainStepType = typeChecker.getTypeAtLocation(enclosingChainStepNode)
+        const signature = enclosingChainStepType.getCallSignatures()[0]
+        if (!signature) return existing
+        const returnType = signature.getReturnType()
+        const returnTypeProperties = returnType.getProperties()
+        log(`found definition name: ${definition.name}`)
+        returnTypeProperties.map(property => {
+          log(`found return type property: ${property.name}`)
+        })
         // log(`found type: symbol: ${dump(enclosingChainStepType.symbol)}, apparent properties: ${dump(enclosingChainStepType.getApparentProperties())}`)
-        log(`found type: ${typeChecker.typeToString(enclosingChainStepType)}`)
         return existing
       };
 
