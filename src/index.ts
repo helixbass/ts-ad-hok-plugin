@@ -44,17 +44,46 @@ const init = (modules: {typescript: typeof import('typescript/lib/tsserverlibrar
         if (enclosingFlowMaxNode.expression.kind !== ts.SyntaxKind.Identifier || (enclosingFlowMaxNode.expression as ts.Identifier).escapedText !== 'flowMax') return existing
         const enclosingChainStepNode = findEnclosingNode(enclosingFlowMaxNode)
         if (!enclosingChainStepNode) return existing
+        let chainStepNodeIndex = enclosingFlowMaxNode.arguments.findIndex(arg => arg === enclosingChainStepNode)
+        if (chainStepNodeIndex === -1) return existing
         const typeChecker = program.getTypeChecker()
-        const enclosingChainStepType = typeChecker.getTypeAtLocation(enclosingChainStepNode)
-        const signature = enclosingChainStepType.getCallSignatures()[0]
-        if (!signature) return existing
-        const returnType = signature.getReturnType()
-        const returnTypeProperties = returnType.getProperties()
-        log(`found definition name: ${definition.name}`)
-        returnTypeProperties.map(property => {
-          log(`found return type property: ${property.name}`)
-        })
-        // log(`found type: symbol: ${dump(enclosingChainStepType.symbol)}, apparent properties: ${dump(enclosingChainStepType.getApparentProperties())}`)
+        let currentChainStepNode
+        while (chainStepNodeIndex >= 0) {
+          currentChainStepNode = enclosingFlowMaxNode.arguments[chainStepNodeIndex]
+          const chainStepType = typeChecker.getTypeAtLocation(currentChainStepNode)
+          const signature = chainStepType.getCallSignatures()[0]
+          if (!signature) return existing
+          const firstParam = signature.getParameters()[0]
+          // log(`found first param: ${typeChecker.symbolToString(firstParam)}`)
+          if (!firstParam.valueDeclaration) return
+          const firstParamType = typeChecker.getTypeOfSymbolAtLocation(firstParam, firstParam.valueDeclaration)
+          // log(`found first param type: ${typeChecker.typeToString(firstParamType)}`)
+          const firstParamTypeProperties = firstParamType.getProperties()
+          // log(`found definition name: ${definition.name}`)
+          const found = firstParamTypeProperties.find(property => property.name === definition.name)
+          if (!found) {
+            log(`found not found`)
+            return {
+              definitions: [
+                {
+                  fileName,
+                  textSpan: {
+                    start: currentChainStepNode.pos + 1,
+                    length: currentChainStepNode.end - currentChainStepNode.pos,
+                  },
+                  kind: ts.ScriptElementKind.unknown,
+                  name: definition.name,
+                  containerKind: ts.ScriptElementKind.unknown,
+                  containerName: definition.name,
+                }
+              ],
+              textSpan: existing!.textSpan,
+            }
+          } else {
+            log(`found found`)
+          }
+          chainStepNodeIndex--
+        }
         return existing
       };
 
