@@ -34,18 +34,17 @@ const init = (modules: {typescript: typeof import('typescript/lib/tsserverlibrar
         }
       }
 
-      proxy.getDefinitionAndBoundSpan = (fileName, position) => {
-        const existing = info.languageService.getDefinitionAndBoundSpan(fileName, position)
-        // log('found here')
-        if (existing) return existing
-        // log('found existing')
+      const getDefinitionAndQueriedIdentifier = (fileName: string, position: number): {
+        definition: ts.DefinitionInfo
+        queriedIdentifier: ts.Identifier
+      } | undefined => {
         const program = info.languageService.getProgram()
-        if (!program) return existing
+        if (!program) return
         const sourceFile = program.getSourceFile(fileName)
-        if (!sourceFile) return existing
+        if (!sourceFile) return
         const queriedIdentifierAndAncestors = findIdentifierAndAncestorsAtPosition(sourceFile, position)
         // log('found pre-queriedIdentifierAndAncestors')
-        if (!queriedIdentifierAndAncestors) return existing
+        if (!queriedIdentifierAndAncestors) return
         // log('found post-queriedIdentifierAndAncestors')
         const {
           identifier: queriedIdentifier,
@@ -62,8 +61,8 @@ const init = (modules: {typescript: typeof import('typescript/lib/tsserverlibrar
         // log('found pre-check ancestor kinds')
         for (const expectedAncestorNodeSyntaxKind of expectedQueriedIdentifierAncestorSyntaxKinds) {
           const ancestorNode = queriedIdentifierAncestors.pop()
-          if (!ancestorNode) return existing
-          if (ancestorNode.kind !== expectedAncestorNodeSyntaxKind) return existing
+          if (!ancestorNode) return
+          if (ancestorNode.kind !== expectedAncestorNodeSyntaxKind) return
         }
         // log('found post-check ancestor kinds')
         const expectedEnclosingNodeSyntaxKinds: ts.SyntaxKind[] = [
@@ -80,53 +79,77 @@ const init = (modules: {typescript: typeof import('typescript/lib/tsserverlibrar
         let enclosingNode: ts.Node | undefined = sourceFile
         for (const expectedEnclosingNodeSyntaxKind of expectedEnclosingNodeSyntaxKinds) {
           enclosingNode = findEnclosingNode(enclosingNode)
-          if (!enclosingNode) return existing
+          if (!enclosingNode) return
           // log(`found ${enclosingNode.kind}: ${enclosingNode.getStart()}-${enclosingNode.getEnd()}`)
-          if (enclosingNode.kind !== expectedEnclosingNodeSyntaxKind) return existing
+          if (enclosingNode.kind !== expectedEnclosingNodeSyntaxKind) return
         }
         const enclosingFlowMaxNode = enclosingNode as ts.CallExpression
-        if (enclosingFlowMaxNode.expression.kind !== ts.SyntaxKind.Identifier || (enclosingFlowMaxNode.expression as ts.Identifier).text !== 'flowMax') return existing
+        if (enclosingFlowMaxNode.expression.kind !== ts.SyntaxKind.Identifier || (enclosingFlowMaxNode.expression as ts.Identifier).text !== 'flowMax') return
         const enclosingChainStepNode = findEnclosingNode(enclosingFlowMaxNode)
-        if (!enclosingChainStepNode) return existing
+        if (!enclosingChainStepNode) return
         let chainStepNodeIndex = enclosingFlowMaxNode.arguments.findIndex(arg => arg === enclosingChainStepNode)
-        if (chainStepNodeIndex === -1) return existing
+        if (chainStepNodeIndex === -1) return
         const typeChecker = program.getTypeChecker()
         let currentChainStepNode
         while (chainStepNodeIndex >= 0) {
           currentChainStepNode = enclosingFlowMaxNode.arguments[chainStepNodeIndex]
           const chainStepType = typeChecker.getTypeAtLocation(currentChainStepNode)
           const signature = chainStepType.getCallSignatures()[0]
-          if (!signature) return existing
+          if (!signature) return
           const firstParam = signature.getParameters()[0]
           // log(`found first param: ${typeChecker.symbolToString(firstParam)}`)
-          if (!firstParam.valueDeclaration) return existing
+          if (!firstParam.valueDeclaration) return
           const firstParamType = typeChecker.getTypeOfSymbolAtLocation(firstParam, firstParam.valueDeclaration)
           // log(`found first param type: ${typeChecker.typeToString(firstParamType)}`)
           const firstParamTypeProperties = firstParamType.getProperties()
-          // log(`found definition name: ${definition.name}`)
           const queriedName = queriedIdentifier.text
+          // log(`found queried name: ${queriedName}`)
           const found = firstParamTypeProperties.find(property => property.name === queriedName)
           if (!found) {
             // log(`found not found`)
             return {
-              definitions: [
-                {
-                  fileName,
-                  textSpan: ts.createTextSpan(currentChainStepNode.getStart(), currentChainStepNode.getWidth()),
-                  kind: ts.ScriptElementKind.unknown,
-                  name: queriedName,
-                  containerKind: ts.ScriptElementKind.unknown,
-                  containerName: queriedName,
-                }
-              ],
-              textSpan: ts.createTextSpan(queriedIdentifier.getStart(), queriedIdentifier.getWidth()),
+              definition: {
+                fileName,
+                textSpan: ts.createTextSpan(currentChainStepNode.getStart(), currentChainStepNode.getWidth()),
+                kind: ts.ScriptElementKind.unknown,
+                name: queriedName,
+                containerKind: ts.ScriptElementKind.unknown,
+                containerName: queriedName,
+              },
+              queriedIdentifier,
             }
           } else {
             // log(`found found`)
           }
           chainStepNodeIndex--
         }
-        return existing
+        return
+      }
+
+      proxy.getDefinitionAndBoundSpan = (fileName, position) => {
+        const existing = info.languageService.getDefinitionAndBoundSpan(fileName, position)
+        // log('found here')
+        if (existing) return existing
+        const definitionAndQueriedIdentifier = getDefinitionAndQueriedIdentifier(fileName, position)
+        if (!definitionAndQueriedIdentifier) return existing
+        const {definition, queriedIdentifier} = definitionAndQueriedIdentifier
+        return {
+          definitions: [definition],
+          textSpan: ts.createTextSpan(queriedIdentifier.getStart(), queriedIdentifier.getWidth()),
+        }
+      };
+
+      proxy.getDefinitionAtPosition = (fileName, position) => {
+        const existing = info.languageService.getDefinitionAtPosition(fileName, position)
+        // log('found here')
+        if (existing?.length) {
+          // log('found existing' + existing.length)
+          return existing
+        }
+        const definitionAndQueriedIdentifier = getDefinitionAndQueriedIdentifier(fileName, position)
+        if (!definitionAndQueriedIdentifier) return existing
+        const {definition} = definitionAndQueriedIdentifier
+        return [definition]
       };
 
       return proxy
