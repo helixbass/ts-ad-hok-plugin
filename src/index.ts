@@ -93,34 +93,28 @@ const init = (modules: {typescript: typeof import('typescript/lib/tsserverlibrar
         let currentChainStepNode
         while (chainStepNodeIndex >= 0) {
           currentChainStepNode = enclosingFlowMaxNode.arguments[chainStepNodeIndex]
-          // const chainStepType = typeChecker.getTypeAtLocation(currentChainStepNode)
           const chainStepType = typeChecker.getContextualType(currentChainStepNode)
           if (!chainStepType) {
-            log(`found no chain step type`)
+            // log(`found no chain step type`)
             return
           }
-          log(`found chain step type: ${typeChecker.typeToString(chainStepType)}`)
-          // const chainStepApparentType = typeChecker.getApparentType(chainStepType)
-          // log(`found chain step apparent type: ${typeChecker.typeToString(chainStepApparentType)}`)
+          // log(`found chain step type: ${typeChecker.typeToString(chainStepType)}`)
           const signature = chainStepType.getCallSignatures()[0]
           if (!signature) return
           const firstParam = signature.getParameters()[0]
-          log(`found first param: ${typeChecker.symbolToString(firstParam)}`)
+          // log(`found first param: ${typeChecker.symbolToString(firstParam)}`)
           if (!firstParam.valueDeclaration) return
           const firstParamType = typeChecker.getTypeOfSymbolAtLocation(firstParam, firstParam.valueDeclaration)
-          log(`found first param type: ${typeChecker.typeToString(firstParamType)}`)
-          // const firstParamApparentType = typeChecker.getApparentType(firstParamType)
-          // log(`found first param apparent type: ${typeChecker.typeToString(firstParamApparentType)}`)
+          // log(`found first param type: ${typeChecker.typeToString(firstParamType)}`)
           const firstParamTypeProperties = firstParamType.getProperties()
-          // const firstParamTypeProperties = firstParamType.getApparentProperties()
           const queriedName = queriedIdentifier.text
           // log(`found queried name: ${queriedName}`)
           const found = firstParamTypeProperties.find(property => {
-            log(`found checking property name: ${property.name}`)
+            // log(`found checking property name: ${property.name}`)
             return property.name === queriedName
           })
           if (!found) {
-            log(`found not found`)
+            // log(`found not found`)
             return {
               definition: {
                 fileName,
@@ -133,7 +127,7 @@ const init = (modules: {typescript: typeof import('typescript/lib/tsserverlibrar
               queriedIdentifier,
             }
           } else {
-            log(`found found`)
+            // log(`found found`)
           }
           chainStepNodeIndex--
         }
