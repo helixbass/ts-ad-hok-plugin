@@ -106,13 +106,9 @@ const init = (modules: {typescript: typeof import('typescript/lib/tsserverlibrar
           if (!firstParam.valueDeclaration) return
           const firstParamType = typeChecker.getTypeOfSymbolAtLocation(firstParam, firstParam.valueDeclaration)
           // log(`found first param type: ${typeChecker.typeToString(firstParamType)}`)
-          const firstParamTypeProperties = firstParamType.getProperties()
           const queriedName = queriedIdentifier.text
+          const found = firstParamType.getProperty(queriedName)
           // log(`found queried name: ${queriedName}`)
-          const found = firstParamTypeProperties.find(property => {
-            // log(`found checking property name: ${property.name}`)
-            return property.name === queriedName
-          })
           if (!found) {
             // log(`found not found`)
             return {
